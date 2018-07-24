@@ -19,7 +19,7 @@ export default class NodeWrapper extends React.Component {
   }
 
   render() {
-    if (this.state.enableTransitions) {
+    if (this.state.enableTransitions && this.props.useTransitionGroup) {
       return (
         <TransitionGroup
           component={this.props.component}
@@ -44,6 +44,7 @@ NodeWrapper.defaultProps = {
 };
 
 NodeWrapper.propTypes = {
+  useTransitionGroup: PropTypes.bool.isRequired,
   transitionDuration: PropTypes.number.isRequired,
   component: PropTypes.string,
   className: PropTypes.string.isRequired,

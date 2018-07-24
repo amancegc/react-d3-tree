@@ -28,7 +28,6 @@ export default class Node extends React.Component {
   componentDidMount() {
     const { nodeData: { x, y }, orientation, transitionDuration } = this.props;
     const transform = this.setTransformOrientation(x, y, orientation);
-
     this.applyTransform(transform, transitionDuration);
   }
 
@@ -67,6 +66,7 @@ export default class Node extends React.Component {
     } else {
       select(this.node)
         .transition()
+        .ease(this.props.easingFunc)
         .duration(transitionDuration)
         .attr('transform', transform)
         .style('opacity', opacity)
@@ -111,8 +111,19 @@ export default class Node extends React.Component {
   }
 
   render() {
-    const { nodeData, nodeSize, nodeLabelComponent, allowForeignObjects, styles } = this.props;
+    const {
+      nodeData,
+      nodeSize,
+      nodeLabelComponent,
+      allowForeignObjects,
+      styles,
+      active,
+    } = this.props;
+
     const nodeStyle = nodeData._children ? { ...styles.node } : { ...styles.leafNode };
+    const nodeClass = nodeData._children ? 'nodeBase' : 'leafNodeBase';
+    const nodeActive = active ? ' nodeActive' : '';
+
     return (
       <g
         id={nodeData.id}
@@ -120,18 +131,18 @@ export default class Node extends React.Component {
           this.node = n;
         }}
         style={this.state.initialStyle}
-        className={nodeData._children ? 'nodeBase' : 'leafNodeBase'}
+        className={nodeClass + nodeActive}
         transform={this.state.transform}
         onClick={this.handleClick}
         onMouseOver={this.handleOnMouseOver}
         onMouseOut={this.handleOnMouseOut}
       >
-        {this.renderNodeElement(nodeStyle)}
+        {this.renderNodeElement(nodeStyle + nodeActive)}
 
         {allowForeignObjects && nodeLabelComponent ? (
           <ForeignObjectElement nodeData={nodeData} nodeSize={nodeSize} {...nodeLabelComponent} />
         ) : (
-          <SvgTextElement {...this.props} nodeStyle={nodeStyle} />
+          <SvgTextElement {...this.props} nodeStyle={nodeStyle + nodeActive} />
         )}
       </g>
     );
@@ -140,6 +151,7 @@ export default class Node extends React.Component {
 
 Node.defaultProps = {
   nodeLabelComponent: null,
+  active: false,
   attributes: undefined,
   circleRadius: undefined,
   styles: {
@@ -157,6 +169,8 @@ Node.defaultProps = {
 };
 
 Node.propTypes = {
+  active: PropTypes.bool,
+  easingFunc: PropTypes.string.isRequired,
   nodeData: PropTypes.object.isRequired,
   nodeSvgShape: PropTypes.object.isRequired,
   nodeLabelComponent: PropTypes.object,

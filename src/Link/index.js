@@ -29,6 +29,7 @@ export default class Link extends React.PureComponent {
     } else {
       select(this.link)
         .transition()
+        .ease(this.props.easingFunc)
         .duration(transitionDuration)
         .style('opacity', opacity)
         .each('end', done);
@@ -89,14 +90,15 @@ export default class Link extends React.PureComponent {
   }
 
   render() {
-    const { styles } = this.props;
+    const { styles, active } = this.props;
+
     return (
       <path
         ref={l => {
           this.link = l;
         }}
         style={{ ...this.state.initialStyle, ...styles }}
-        className="linkBase"
+        className={`linkBase ${active ? 'link-active' : ''}`}
         d={this.drawPath()}
       />
     );
@@ -105,9 +107,12 @@ export default class Link extends React.PureComponent {
 
 Link.defaultProps = {
   styles: {},
+  active: false,
 };
 
 Link.propTypes = {
+  active: PropTypes.bool,
+  easingFunc: PropTypes.string.isRequired,
   linkData: PropTypes.object.isRequired,
   orientation: PropTypes.oneOf(['horizontal', 'vertical']).isRequired,
   pathFunc: PropTypes.oneOfType([

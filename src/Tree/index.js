@@ -19,6 +19,7 @@ export default class Tree extends React.Component {
       rd3tGClassName: `_${uuid.v4()}`,
     };
     this.internalState = {
+      maxDepth: 0,
       initialRender: true,
       targetNode: null,
       isTransitioning: false,
@@ -188,6 +189,28 @@ export default class Tree extends React.Component {
   }
 
   /**
+   * findMaxTreeDepth - Find the maximum potential depth of the tree
+   *
+   * @param {object} the tree object
+   *
+   * @return {void}
+   */
+
+  findMaxDepth(nodes) {
+    let maxDepth = 0;
+
+    nodes.forEach(node => {
+      if (node.depth > maxDepth) {
+        maxDepth = node.depth;
+      }
+    });
+
+    if (this.internalState.maxDepth !== maxDepth) {
+      this.internalState.maxDepth = maxDepth;
+    }
+  }
+
+  /**
    * collapseNode - Recursively sets the `_collapsed` property of
    * the passed `node` object and its children to `true`.
    *
@@ -232,15 +255,12 @@ export default class Tree extends React.Component {
     const matches = this.findNodesById(nodeId, data, []);
     const targetNode = matches[0];
 
-    if (this.props.collapsible && !this.state.isTransitioning) {
+    if (this.props.collapsible) {
       targetNode._collapsed ? this.expandNode(targetNode) : this.collapseNode(targetNode);
       // Lock node toggling while transition takes place
-      this.setState({ data, isTransitioning: true }, () => this.handleOnClickCb(targetNode, evt));
-      // Await transitionDuration + 10 ms before unlocking node toggling again
-      setTimeout(
-        () => this.setState({ isTransitioning: false }),
-        this.props.transitionDuration + 10,
-      );
+      // ideas: make transitioning a one-way function (check if it just went transitioning true --> false and disable reloads)
+
+      this.setState({ data }, () => this.handleOnClickCb(targetNode, evt));
       this.internalState.targetNode = targetNode;
     } else {
       this.handleOnClickCb(targetNode, evt);
@@ -304,25 +324,21 @@ export default class Tree extends React.Component {
    * @return {object} Object containing `nodes` and `links`.
    */
   generateTree() {
-    const {
-      initialDepth,
-      useCollapseData,
-      depthFactor,
-      separation,
-      nodeSize,
-      orientation,
-    } = this.props;
+    const { initialDepth, useCollapseData, depthFactor, nodeSize, orientation } = this.props;
+
+    const height = this.calculateWindowDimensions();
+    const width = ((1 + this.internalState.maxDepth) * 150).toString();
 
     const tree = layout
       .tree()
       .nodeSize(orientation === 'horizontal' ? [nodeSize.y, nodeSize.x] : [nodeSize.x, nodeSize.y])
-      .separation(
-        (a, b) => (a.parent.id === b.parent.id ? separation.siblings : separation.nonSiblings),
-      )
+      .size([height, width])
       .children(d => (d._collapsed ? null : d._children));
 
     const rootNode = this.state.data[0];
     let nodes = tree.nodes(rootNode);
+
+    this.findMaxDepth(nodes);
 
     // set `initialDepth` on first render if specified
     if (
@@ -342,6 +358,35 @@ export default class Tree extends React.Component {
 
     const links = tree.links(nodes);
     return { nodes, links };
+  }
+
+  /**
+   * CalculateWindowDimensions - Calculate the inner and outer component dimensions
+   * for the current tree. Used to find SVG sizes for fixed-width charts
+   *
+   * @return {string} client height (in px)
+   */
+  calculateWindowDimensions() {
+    if (this.treeContainer) {
+      return this.treeContainer.clientHeight.toString();
+    }
+    return '800';
+  }
+
+  /**
+   * CalculateActivePath - Caclulate the list of nodes on the 'active path'
+   * from the currently active node to the root. Used to highlight the active path.
+   *
+   * @param  {object} activeNode, [list] activePath
+   * @return {object} [{node}{node}{node}....{root}]
+   */
+  calculateActivePath(activeNode, activePath) {
+    activePath.push(activeNode.id);
+
+    if (activeNode.parent) {
+      this.calculateActivePath(activeNode.parent, activePath);
+    }
+    return activePath;
   }
 
   /**
@@ -375,6 +420,7 @@ export default class Tree extends React.Component {
     const { rd3tSvgClassName, rd3tGClassName } = this.state;
     const {
       nodeSvgShape,
+      useTransitionGroup,
       nodeLabelComponent,
       orientation,
       pathFunc,
@@ -386,16 +432,26 @@ export default class Tree extends React.Component {
       initialDepth,
       separation,
       circleRadius,
+      easingFunc,
       allowForeignObjects,
       styles,
     } = this.props;
-    const { translate, scale } = this.internalState.d3;
+    const { targetNode, d3 } = this.internalState;
+    const { translate, scale } = d3;
     const subscriptions = { ...nodeSize, ...separation, depthFactor, initialDepth };
 
+    const activePath = targetNode !== null ? this.calculateActivePath(targetNode, []) : [];
+
     return (
-      <div className={`rd3t-tree-container ${zoomable ? 'rd3t-grabbable' : undefined}`}>
+      <div
+        ref={treeContainer => {
+          this.treeContainer = treeContainer;
+        }}
+        className={`rd3t-tree-container ${zoomable ? 'rd3t-grabbable' : undefined}`}
+      >
         <svg className={rd3tSvgClassName} width="100%" height="100%">
           <NodeWrapper
+            useTransitionGroup={useTransitionGroup}
             transitionDuration={transitionDuration}
             component="g"
             className={rd3tGClassName}
@@ -403,9 +459,14 @@ export default class Tree extends React.Component {
           >
             {links.map(linkData => (
               <Link
+                active={
+                  activePath.indexOf(linkData.source.id) !== -1 &&
+                  activePath.indexOf(linkData.target.id) !== -1
+                }
                 key={uuid.v4()}
                 orientation={orientation}
                 pathFunc={pathFunc}
+                easingFunc={easingFunc}
                 linkData={linkData}
                 transitionDuration={transitionDuration}
                 styles={styles.links}
@@ -415,9 +476,11 @@ export default class Tree extends React.Component {
             {nodes.map(nodeData => (
               <Node
                 key={nodeData.id}
+                active={(targetNode && targetNode.id) === nodeData.id}
                 nodeSvgShape={{ ...nodeSvgShape, ...nodeData.nodeSvgShape }}
                 nodeLabelComponent={nodeLabelComponent}
                 nodeSize={nodeSize}
+                easingFunc={easingFunc}
                 orientation={orientation}
                 transitionDuration={transitionDuration}
                 nodeData={nodeData}
@@ -452,15 +515,17 @@ Tree.defaultProps = {
   onMouseOver: undefined,
   onMouseOut: undefined,
   onUpdate: undefined,
+  easingFunc: 'cubic-in-out',
   orientation: 'horizontal',
   translate: { x: 0, y: 0 },
   pathFunc: 'diagonal',
-  transitionDuration: 500,
+  transitionDuration: 750,
   depthFactor: undefined,
   collapsible: true,
   useCollapseData: false,
   initialDepth: undefined,
   zoomable: true,
+  useTransitionGroup: false,
   zoom: 1,
   scaleExtent: { min: 0.1, max: 1 },
   nodeSize: { x: 140, y: 140 },
@@ -484,6 +549,7 @@ Tree.propTypes = {
   }),
   nodeLabelComponent: PropTypes.object,
   onClick: PropTypes.func,
+  easingFunc: PropTypes.string,
   onMouseOver: PropTypes.func,
   onMouseOut: PropTypes.func,
   onUpdate: PropTypes.func,
@@ -502,6 +568,7 @@ Tree.propTypes = {
   useCollapseData: PropTypes.bool,
   initialDepth: PropTypes.number,
   zoomable: PropTypes.bool,
+  useTransitionGroup: PropTypes.bool,
   zoom: PropTypes.number,
   scaleExtent: PropTypes.shape({
     min: PropTypes.number,
