@@ -20,11 +20,13 @@ export default class SvgTextElement extends React.PureComponent {
         </text>
         <text
           className="nodeAttributesBase"
-          y={textLayout.y + 10}
+          y="3.5"
+          x="3.5"
           textAnchor={textLayout.textAnchor}
           transform={textLayout.transform}
           style={nodeStyle.attributes}
         >
+          +
           {attributes &&
             Object.keys(attributes).map(labelKey => (
               <tspan x={textLayout.x} dy="1.2em" key={uuid.v4()}>
