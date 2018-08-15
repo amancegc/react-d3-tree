@@ -189,6 +189,22 @@ export default class Tree extends React.Component {
   }
 
   /**
+   * findTargetNode - Find the current target node (for initial load)
+   *
+   * @param {object} the tree object
+   *
+   * @return {void}
+   */
+
+  findTargetNode(nodes) {
+    nodes.forEach(node => {
+      if (node._active === true) {
+        this.internalState.targetNode = node;
+      }
+    });
+  }
+
+  /**
    * findMaxTreeDepth - Find the maximum potential depth of the tree
    *
    * @param {object} the tree object
@@ -339,6 +355,7 @@ export default class Tree extends React.Component {
     let nodes = tree.nodes(rootNode);
 
     this.findMaxDepth(nodes);
+    this.findTargetNode(nodes);
 
     // set `initialDepth` on first render if specified
     if (
