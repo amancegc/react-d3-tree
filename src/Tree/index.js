@@ -197,12 +197,13 @@ export default class Tree extends React.Component {
    */
 
   findTargetNode(nodes) {
-    console.log(this.internalState.initialRender);
-    nodes.forEach(node => {
-      if (node._active === true) {
-        this.internalState.targetNode = node;
-      }
-    });
+    if (this.internalState.initialRender === true) {
+      nodes.forEach(node => {
+        if (node._active === true) {
+          this.internalState.targetNode = node;
+        }
+      });
+    }
   }
 
   /**
